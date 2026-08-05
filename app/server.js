@@ -1,84 +1,32 @@
-require("dotenv").config();
-
-const express = require("express");
-const helmet = require("helmet");
-const morgan = require("morgan");
-const rateLimit = require("express-rate-limit");
-
-const app = express();
+const { app, logger } = require("./app");
 
 const PORT = process.env.PORT || 3001;
 
-// Security Headers
-app.use(helmet());
-
-// Parse JSON
-app.use(express.json());
-
-// HTTP Request Logging
-app.use(morgan("combined"));
-
-// Rate Limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100
+const server = app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
 });
 
-app.use(limiter);
-
-// Root Endpoint
-app.get("/", (req, res) => {
-    res.json({
-        application: process.env.APP_NAME,
-        version: process.env.APP_VERSION,
-        environment: process.env.NODE_ENV,
-        status: "Running"
-    });
+// Fail fast on programmer errors instead of continuing in a corrupted
+// state — Kubernetes will restart the pod per the liveness probe.
+process.on("uncaughtException", (err) => {
+    logger.fatal({ err }, "Uncaught exception, shutting down");
+    process.exit(1);
 });
 
-// Health Check
-app.get("/health", (req, res) => {
-    res.status(200).json({
-        status: "Healthy",
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
+process.on("unhandledRejection", (reason) => {
+    logger.fatal({ reason }, "Unhandled promise rejection, shutting down");
+    process.exit(1);
 });
 
-// Readiness Check
-app.get("/ready", (req, res) => {
-    res.status(200).json({
-        ready: true
+// Stop accepting new connections and let in-flight requests finish
+// before exiting, so rolling updates don't drop traffic.
+const shutdown = (signal) => {
+    logger.info(`${signal} received, shutting down gracefully`);
+    server.close(() => {
+        logger.info("HTTP server closed");
+        process.exit(0);
     });
-});
+};
 
-// Version
-app.get("/version", (req, res) => {
-    res.json({
-        version: process.env.APP_VERSION
-    });
-});
-
-// 404 Handler
-app.use((req, res) => {
-    res.status(404).json({
-        error: "Route Not Found"
-    });
-});
-
-// Global Error Handler
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-
-    res.status(500).json({
-        error: "Internal Server Error"
-    });
-});
-
-if (require.main === module) {
-    app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-    });
-}
-
-module.exports = app;
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
