@@ -12,6 +12,9 @@ permissions:
   contents: read
   security-events: write
 
+env:
+  IMAGE_NAME: enterprise-devsecops-pipeline
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -92,3 +95,62 @@ jobs:
           name: dependency-check-report
           path: reports/dependency-check
           retention-days: 30
+
+      - name: Docker Build
+        working-directory: .
+        run: docker build -f docker/Dockerfile -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+      # Pinned to the exact commit for trivy-action v0.35.0, NOT the mutable
+      # tag. On 2026-03-19 attackers force-pushed malicious code onto 75 of
+      # 76 trivy-action tags (GHSA-69fq-xp46-6x23 / CVE-2026-33634), injecting
+      # a credential stealer into every tagged release from 0.0.1-0.34.2.
+      # Only a SHA pin is immune to a tag being moved after the fact.
+      - name: Trivy Image Scan (SARIF)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: sarif
+          output: trivy.sarif
+          severity: "CRITICAL,HIGH,MEDIUM"
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+      - name: Trivy Image Scan (HTML Report)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: template
+          template: "@/contrib/html.tpl"
+          output: reports/trivy/trivy-report.html
+          severity: "CRITICAL,HIGH,MEDIUM"
+          exit-code: "0"
+
+      - name: Upload Trivy HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-report
+          path: reports/trivy
+          retention-days: 30
+
+      - name: Trivy Quality Gate (CRITICAL)
+        id: trivy-gate
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        continue-on-error: true
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          severity: "CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Enforce Trivy Quality Gate
+        if: steps.trivy-gate.outcome == 'failure'
+        run: |
+          echo "::error::Trivy found CRITICAL vulnerabilities with an available fix. See the uploaded trivy-image-report artifact and the Security tab."
+          exit 1
