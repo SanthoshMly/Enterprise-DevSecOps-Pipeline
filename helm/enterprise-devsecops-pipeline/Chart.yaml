@@ -1,0 +1,13 @@
+apiVersion: v2
+name: enterprise-devsecops-pipeline
+description: Enterprise-grade DevSecOps CI/CD pipeline reference application
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - nodejs
+  - express
+  - devsecops
+  - kubernetes
+maintainers:
+  - name: Enterprise DevSecOps Pipeline

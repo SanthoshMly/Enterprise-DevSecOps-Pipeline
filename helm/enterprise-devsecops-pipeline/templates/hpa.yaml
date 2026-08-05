@@ -1,0 +1,34 @@
+{{- if .Values.hpa.enabled }}
+# Requires the metrics-server addon (`minikube addons enable metrics-server`
+# on Minikube; usually pre-installed on managed clusters).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "enterprise-devsecops.fullname" . }}-hpa
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "enterprise-devsecops.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "enterprise-devsecops.fullname" . }}
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.targetCPUUtilization }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.targetMemoryUtilization }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+{{- end }}

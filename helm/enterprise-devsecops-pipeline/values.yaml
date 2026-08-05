@@ -1,0 +1,67 @@
+# Default values. Override per environment with:
+#   helm install <release> . -f values-development.yaml
+#   helm install <release> . -f values-staging.yaml
+#   helm install <release> . -f values-production.yaml
+
+fullnameOverride: "enterprise-devsecops"
+
+namespace:
+  create: true
+  name: devsecops
+
+replicaCount: 2
+
+image:
+  repository: YOUR_DOCKERHUB_USERNAME/enterprise-devsecops-pipeline
+  tag: "v1"
+  pullPolicy: Always
+
+rollingUpdate:
+  maxSurge: 1
+  maxUnavailable: 0
+
+env:
+  port: "3001"
+  nodeEnv: "production"
+  appName: "Enterprise DevSecOps Pipeline"
+  logLevel: "info"
+
+secrets:
+  # Placeholder only -- see templates/secret.yaml. Override via --set or a
+  # non-committed values file, never by editing this default in place.
+  sessionSecret: "CHANGE_ME_INJECT_VIA_CI_OR_SECRETS_MANAGER"
+
+securityContext:
+  uid: 10001
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+service:
+  type: ClusterIP
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: devsecops.local
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  tls:
+    enabled: false
+    secretName: ""
+
+networkPolicy:
+  enabled: true

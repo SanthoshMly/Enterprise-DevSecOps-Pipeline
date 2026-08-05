@@ -1,0 +1,30 @@
+# Overlay for the staging environment, e.g.:
+#   helm install edp-staging . -f values-staging.yaml -n devsecops-staging --create-namespace
+
+namespace:
+  name: devsecops-staging
+
+replicaCount: 2
+
+image:
+  tag: "staging"
+
+env:
+  nodeEnv: "staging"
+  logLevel: "info"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+
+ingress:
+  host: devsecops.staging.example.com

@@ -1,0 +1,45 @@
+# Overlay for production, e.g.:
+#   helm install edp-prod . -f values-production.yaml -n devsecops-prod --create-namespace
+#
+# image.tag should be pinned by CI to the exact git-SHA tag it just pushed
+# (helm upgrade ... --set image.tag=<sha>), not edited here by hand.
+
+namespace:
+  name: devsecops-prod
+
+replicaCount: 3
+
+image:
+  # Placeholder -- CI always overrides with the exact git-SHA tag it just
+  # pushed (helm upgrade ... --set image.tag=<sha>). Deliberately not
+  # "latest": that's a floating tag Checkov (rightly) flags as
+  # non-deterministic, which defeats the purpose of a placeholder anyway.
+  tag: "v1"
+
+env:
+  nodeEnv: "production"
+  logLevel: "warn"
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "512Mi"
+    cpu: "1000m"
+
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 15
+  targetCPUUtilization: 60
+
+ingress:
+  host: devsecops.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: enterprise-devsecops-tls

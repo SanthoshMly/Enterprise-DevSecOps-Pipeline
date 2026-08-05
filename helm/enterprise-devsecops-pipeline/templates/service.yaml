@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "enterprise-devsecops.fullname" . }}-service
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "enterprise-devsecops.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "enterprise-devsecops.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: {{ .Values.env.port | int }}
+  type: {{ .Values.service.type }}

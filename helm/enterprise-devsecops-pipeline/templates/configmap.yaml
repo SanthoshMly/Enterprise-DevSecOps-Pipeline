@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "enterprise-devsecops.fullname" . }}-config
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "enterprise-devsecops.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.env.port | quote }}
+  NODE_ENV: {{ .Values.env.nodeEnv | quote }}
+  APP_NAME: {{ .Values.env.appName | quote }}
+  APP_VERSION: {{ .Chart.AppVersion | quote }}
+  LOG_LEVEL: {{ .Values.env.logLevel | quote }}
