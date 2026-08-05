@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    # aquasecurity/trivy-action is pinned to a specific commit SHA (see
+    # ci.yaml) following its March 2026 supply-chain compromise -- exclude
+    # it here so Dependabot doesn't quietly move the pin back to a tag.
+    ignore:
+      - dependency-name: "aquasecurity/trivy-action"
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"

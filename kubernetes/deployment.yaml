@@ -32,6 +32,10 @@ spec:
     metadata:
       labels:
         app: enterprise-devsecops
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
     spec:
       # No in-cluster Kubernetes API calls are made, so no token is needed.
       automountServiceAccountToken: false

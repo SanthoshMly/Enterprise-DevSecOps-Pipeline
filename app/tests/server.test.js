@@ -45,6 +45,16 @@ describe("Enterprise DevSecOps API", () => {
         expect(res.body).toEqual({ error: "Route Not Found" });
     });
 
+    test("GET /metrics exposes Prometheus-format metrics", async () => {
+        await request(app).get("/health");
+        const res = await request(app).get("/metrics");
+
+        expect(res.statusCode).toBe(200);
+        expect(res.headers["content-type"]).toContain("text/plain");
+        expect(res.text).toContain("http_request_duration_seconds");
+        expect(res.text).toContain("process_cpu_user_seconds_total");
+    });
+
     test("security headers are set by Helmet", async () => {
         const res = await request(app).get("/health");
 

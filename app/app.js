@@ -5,10 +5,22 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const pino = require("pino");
+const client = require("prom-client");
 
 const logger = pino({
     level: process.env.LOG_LEVEL || "info",
     base: { service: process.env.APP_NAME || "app" }
+});
+
+const metricsRegistry = new client.Registry();
+client.collectDefaultMetrics({ register: metricsRegistry });
+
+const httpRequestDuration = new client.Histogram({
+    name: "http_request_duration_seconds",
+    help: "HTTP request duration in seconds",
+    labelNames: ["method", "route", "status_code"],
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [metricsRegistry]
 });
 
 const app = express();
@@ -19,6 +31,25 @@ app.set("trust proxy", 1);
 
 // Security Headers
 app.use(helmet());
+
+// Prometheus Metrics Collection
+// req.route is only populated once Express finishes matching a route, so
+// the label is read in the "finish" handler, not at request start.
+app.use((req, res, next) => {
+    const start = process.hrtime.bigint();
+
+    res.on("finish", () => {
+        const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+        const route = req.route ? req.baseUrl + req.route.path : req.path;
+
+        httpRequestDuration.observe(
+            { method: req.method, route, status_code: res.statusCode },
+            durationSeconds
+        );
+    });
+
+    next();
+});
 
 // Parse JSON
 app.use(express.json());
@@ -81,6 +112,12 @@ app.get("/version", (req, res) => {
     });
 });
 
+// Prometheus Metrics
+app.get("/metrics", async (req, res) => {
+    res.set("Content-Type", metricsRegistry.contentType);
+    res.end(await metricsRegistry.metrics());
+});
+
 // 404 Handler
 app.use((req, res) => {
     res.status(404).json({
@@ -99,4 +136,4 @@ const errorHandler = (err, req, res, _next) => {
 
 app.use(errorHandler);
 
-module.exports = { app, logger, errorHandler };
+module.exports = { app, logger, errorHandler, metricsRegistry };

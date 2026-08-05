@@ -30,6 +30,10 @@ spec:
     metadata:
       labels:
         {{- include "enterprise-devsecops.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.env.port | quote }}
+        prometheus.io/path: "/metrics"
     spec:
       automountServiceAccountToken: false
 
