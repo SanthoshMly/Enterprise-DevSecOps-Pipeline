@@ -209,3 +209,85 @@ jobs:
         run: |
           echo "::error::Checkov found IaC misconfigurations. See the uploaded checkov-report artifact and the Security tab."
           exit 1
+
+      # Everything below only runs on an actual push to main -- never on a
+      # pull request -- so forked/PR builds can't push images or touch a
+      # live cluster.
+      - name: Docker Hub Login
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag and Push Docker Image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: .
+        run: |
+          REMOTE_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} "$REMOTE_IMAGE:${{ github.sha }}"
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} "$REMOTE_IMAGE:latest"
+          docker push "$REMOTE_IMAGE:${{ github.sha }}"
+          docker push "$REMOTE_IMAGE:latest"
+
+      # Deploys against whatever cluster KUBE_CONFIG points at. GitHub-hosted
+      # runners have no network path to a Minikube instance on a laptop, so
+      # this step is a no-op (skipped, not failed) until KUBE_CONFIG is set
+      # to a reachable cluster's kubeconfig (base64-encoded). For local
+      # Minikube testing, run scripts/deploy-minikube.sh instead.
+      - name: Configure Kubeconfig
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.KUBE_CONFIG != ''
+        working-directory: .
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
+
+      - name: Deploy to Kubernetes
+        id: deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.KUBE_CONFIG != ''
+        working-directory: .
+        run: |
+          kubectl apply -f kubernetes/namespace.yaml
+          kubectl apply -f kubernetes/
+          kubectl set image deployment/enterprise-devsecops \
+            enterprise-devsecops="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
+            -n devsecops
+          kubectl rollout status deployment/enterprise-devsecops -n devsecops --timeout=180s
+
+      - name: Smoke Test
+        id: smoke-test
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.KUBE_CONFIG != ''
+        working-directory: .
+        run: |
+          kubectl port-forward -n devsecops svc/enterprise-devsecops-service 8080:80 &
+          PF_PID=$!
+          sleep 5
+          curl -sf http://localhost:8080/health
+          curl -sf http://localhost:8080/ready
+          curl -sf http://localhost:8080/version
+          kill $PF_PID
+
+      - name: Rollback on Failed Deployment or Smoke Test
+        if: failure() && (steps.deploy.outcome == 'failure' || steps.smoke-test.outcome == 'failure')
+        working-directory: .
+        run: |
+          echo "::error::Deployment or smoke test failed -- rolling back to the previous revision."
+          kubectl rollout undo deployment/enterprise-devsecops -n devsecops
+          kubectl rollout status deployment/enterprise-devsecops -n devsecops --timeout=120s
+
+      - name: Pipeline Security Summary
+        if: always()
+        run: |
+          {
+            echo "## Security Gate Summary"
+            echo "| Gate | Result |"
+            echo "|---|---|"
+            echo "| Semgrep (SAST) | ${{ steps.semgrep.outcome }} |"
+            echo "| Gitleaks (secrets) | ${{ job.status }} |"
+            echo "| OWASP Dependency-Check | (see dependency-check-report artifact) |"
+            echo "| Trivy (image CVEs, CRITICAL gate) | ${{ steps.trivy-gate.outcome }} |"
+            echo "| Checkov (Kubernetes IaC) | ${{ steps.checkov-kubernetes.outcome }} |"
+            echo "| Checkov (Dockerfile) | ${{ steps.checkov-dockerfile.outcome }} |"
+            echo "| Deploy to Kubernetes | ${{ steps.deploy.outcome || 'skipped (no KUBE_CONFIG)' }} |"
+            echo "| Smoke Test | ${{ steps.smoke-test.outcome || 'skipped (no KUBE_CONFIG)' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
