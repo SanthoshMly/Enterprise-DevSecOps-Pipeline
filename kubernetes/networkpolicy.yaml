@@ -1,0 +1,28 @@
+# Ingress is left open on the app port: this pod is fronted by a public
+# Ingress controller whose namespace/labels vary by installation (and
+# differ between Minikube's addon and managed clusters), so restricting
+# source here would be fragile without buying real isolation. Egress is
+# restricted to DNS only, since the app makes no outbound calls to other
+# services -- add explicit allow rules here if that changes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: enterprise-devsecops-netpol
+  namespace: devsecops
+spec:
+  podSelector:
+    matchLabels:
+      app: enterprise-devsecops
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 3001
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

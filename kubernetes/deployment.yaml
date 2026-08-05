@@ -3,8 +3,28 @@ kind: Deployment
 metadata:
   name: enterprise-devsecops
   namespace: devsecops
+  labels:
+    app: enterprise-devsecops
+  annotations:
+    # Kubernetes manifests use annotation-based suppression, not the
+    # "# checkov:skip=" comment style Checkov uses for Terraform/CFN.
+    checkov.io/skip1: >-
+      CKV_K8S_43=Pinned to an immutable git-SHA tag (not "latest") by the
+      CI/CD pipeline at deploy time -- see Phase 13. The tag checked in
+      here is a placeholder the pipeline overwrites.
+    checkov.io/skip2: >-
+      CKV_K8S_35=SESSION_SECRET (see secret.yaml) is an unused placeholder
+      for a future feature, not a live credential yet. Revisit this skip,
+      and switch to a mounted secret volume, before anything sensitive is
+      added to enterprise-devsecops-secrets.
 spec:
   replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: enterprise-devsecops
@@ -13,11 +33,43 @@ spec:
       labels:
         app: enterprise-devsecops
     spec:
+      # No in-cluster Kubernetes API calls are made, so no token is needed.
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
       - name: enterprise-devsecops
         image: YOUR_DOCKERHUB_USERNAME/enterprise-devsecops-pipeline:v1
+        imagePullPolicy: Always
+
         ports:
         - containerPort: 3001
+
+        envFrom:
+        - configMapRef:
+            name: enterprise-devsecops-config
+        - secretRef:
+            name: enterprise-devsecops-secrets
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+              - ALL
+
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
 
         resources:
           requests:
@@ -36,7 +88,11 @@ spec:
 
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
+
+      volumes:
+      - name: tmp
+        emptyDir: {}

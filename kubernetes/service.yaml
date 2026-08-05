@@ -12,4 +12,6 @@ spec:
       port: 80
       targetPort: 3001
 
-  type: NodePort
+  # ClusterIP, not NodePort: external access now goes through the Ingress
+  # (ingress.yaml) rather than a directly exposed node port.
+  type: ClusterIP

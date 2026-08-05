@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: enterprise-devsecops-config
+  namespace: devsecops
+data:
+  PORT: "3001"
+  NODE_ENV: "production"
+  APP_NAME: "Enterprise DevSecOps Pipeline"
+  APP_VERSION: "1.0.0"
+  LOG_LEVEL: "info"

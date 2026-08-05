@@ -1,0 +1,25 @@
+# On Minikube: `minikube addons enable ingress`, then add the host below
+# to /etc/hosts pointing at `minikube ip`. TLS is left out of this example
+# to keep it reproducible on a local cluster; in a real environment, add a
+# `tls:` block and point cert-manager at an issuer for this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: enterprise-devsecops-ingress
+  namespace: devsecops
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: devsecops.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: enterprise-devsecops-service
+                port:
+                  number: 80

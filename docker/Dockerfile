@@ -15,8 +15,8 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Fixed, non-root UID/GID so it matches the Kubernetes pod securityContext
-RUN addgroup -g 1001 nodejs \
-    && adduser -S -u 1001 -G nodejs nodeapp
+RUN addgroup -g 10001 nodejs \
+    && adduser -S -u 10001 -G nodejs nodeapp
 
 # The base image ships npm, corepack, and Yarn plus their own dependency
 # trees, none of which this container invokes at runtime (CMD calls node
