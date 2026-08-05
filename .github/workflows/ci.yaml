@@ -1,35 +1,48 @@
-name: CI Pipeline
+name: Enterprise DevSecOps Pipeline
 
 on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
-    steps:
+    defaults:
+      run:
+        working-directory: app
 
-      - name: Checkout Code
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install Dependencies
-        run: |
-          cd app
-          npm install
+        run: npm install
 
-      - name: Run Tests
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semgrep
         run: |
-          cd app
-          npm test
+          python -m pip install semgrep
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan --config=auto .
