@@ -154,3 +154,58 @@ jobs:
         run: |
           echo "::error::Trivy found CRITICAL vulnerabilities with an available fix. See the uploaded trivy-image-report artifact and the Security tab."
           exit 1
+
+      - name: Install Checkov
+        run: python -m pip install checkov
+
+      # Checkov's CLI can't reliably combine "-o cli -o sarif" into two
+      # separate destinations in one invocation (verified locally: it
+      # collapses both into a single non-SARIF file). Run it twice instead:
+      # once for human-readable console output, once to emit the SARIF file
+      # that the exit code actually gates on. `|| true` on the first call
+      # stops bash's errexit from skipping the second call when findings fail.
+      - name: Checkov IaC Scan (Kubernetes)
+        id: checkov-kubernetes
+        working-directory: .
+        continue-on-error: true
+        run: |
+          checkov -d kubernetes --framework kubernetes --compact || true
+          checkov -d kubernetes --framework kubernetes -o sarif \
+            --output-file-path reports/checkov/kubernetes --compact
+
+      - name: Checkov IaC Scan (Dockerfile)
+        id: checkov-dockerfile
+        working-directory: .
+        continue-on-error: true
+        run: |
+          checkov -f docker/Dockerfile --framework dockerfile --compact || true
+          checkov -f docker/Dockerfile --framework dockerfile -o sarif \
+            --output-file-path reports/checkov/dockerfile --compact
+
+      - name: Upload Checkov SARIF (Kubernetes) to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/checkov/kubernetes/results_sarif.sarif
+          category: checkov-kubernetes
+
+      - name: Upload Checkov SARIF (Dockerfile) to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/checkov/dockerfile/results_sarif.sarif
+          category: checkov-dockerfile
+
+      - name: Upload Checkov Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-report
+          path: reports/checkov
+          retention-days: 30
+
+      - name: Enforce Checkov Quality Gate
+        if: steps.checkov-kubernetes.outcome == 'failure' || steps.checkov-dockerfile.outcome == 'failure'
+        run: |
+          echo "::error::Checkov found IaC misconfigurations. See the uploaded checkov-report artifact and the Security tab."
+          exit 1
