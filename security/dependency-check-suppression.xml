@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!--
+      Add <suppress> entries here only for findings that have been reviewed
+      and confirmed as false positives or accepted risk. Never suppress a
+      finding without a documented reason and a link to the review.
+
+      Example:
+      <suppress>
+          <notes>False positive: flagged CPE does not match the actual package. Reviewed 2026-08-05.</notes>
+          <packageUrl regex="true">^pkg:npm/example-package@.*$</packageUrl>
+          <cve>CVE-0000-00000</cve>
+      </suppress>
+    -->
+</suppressions>

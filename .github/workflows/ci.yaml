@@ -71,3 +71,24 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "Enterprise DevSecOps Pipeline"
+          path: "app"
+          format: "ALL"
+          out: "reports/dependency-check"
+          args: >
+            --failOnCVSS 7
+            --suppression security/dependency-check-suppression.xml
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload Dependency-Check Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports/dependency-check
+          retention-days: 30
