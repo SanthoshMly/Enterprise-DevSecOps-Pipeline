@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload Dependency-Check Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-check-report
           path: reports/dependency-check
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload Trivy HTML Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-image-report
           path: reports/trivy
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload Checkov Reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: checkov-report
           path: reports/checkov
